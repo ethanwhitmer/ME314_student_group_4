@@ -40,11 +40,17 @@ class PickPlaceNode(Node):
         self.extracted_pub = self.create_publisher(Image,"/me314_xarm/camera/image_extracted", 1)
 
         # Subscribers
-        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
-        self.DepthCameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/aligned_depth_to_color/camera_info",self.GetDepthCameraIntrinsics,1) # Depth Camera Intrinsics
-        self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.cameraRGB_callback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        # self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        # self.DepthCameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/aligned_depth_to_color/camera_info",self.GetDepthCameraIntrinsics,1) # Depth Camera Intrinsics
+        # self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.cameraRGB_callback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        # self.camera_subscription  # prevent unused variable warning
+        # self.depth_camera_subscription = self.create_subscription(Image,"/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        # self.depth_camera_subscription  # prevent unused variable warning
+        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        self.DepthCameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/aligned_depth_to_color/camera_info",self.GetDepthCameraIntrinsics,1) # Depth Camera Intrinsics
+        self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.cameraRGB_callback,qos_profile=qos_profile_sensor_data) # RGB Camera
         self.camera_subscription  # prevent unused variable warning
-        self.depth_camera_subscription = self.create_subscription(Image,"/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        self.depth_camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
         self.depth_camera_subscription  # prevent unused variable warning
         self.CommandSubscriber = self.create_subscription(String,"/me314_xarm_current_command",self.GetCurrentCommand,10) # Current Command in Execution
         self.pose_status_sub = self.create_subscription(Pose, '/me314_xarm_current_pose', self.GetCurrentPose, 10) # Gets Current EE Pose
@@ -121,7 +127,7 @@ class PickPlaceNode(Node):
                         # Populate the pose_command with the values from the pose_array
                         wrapper_home.pose_command.x = 0.3408
                         wrapper_home.pose_command.y = 0.0021
-                        wrapper_home.pose_command.z = 0.3029
+                        wrapper_home.pose_command.z = 0.3029 - 0.058
                         wrapper_home.pose_command.qx = 1.0
                         wrapper_home.pose_command.qy = 0.0
                         wrapper_home.pose_command.qz = 0.0
@@ -176,7 +182,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_p1.pose_command.x = self.blockPoint[0]
                     wrapper_p1.pose_command.y = self.blockPoint[1]
-                    wrapper_p1.pose_command.z = self.blockPoint[2] - 0.01
+                    wrapper_p1.pose_command.z = 0.083 - 0.058#self.blockPoint[2] - 0.01 - 0.058
                     wrapper_p1.pose_command.qx = 1.0
                     wrapper_p1.pose_command.qy = 0.0
                     wrapper_p1.pose_command.qz = 0.0
@@ -194,7 +200,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_home.pose_command.x = 0.3408
                     wrapper_home.pose_command.y = 0.0021
-                    wrapper_home.pose_command.z = 0.3029
+                    wrapper_home.pose_command.z = 0.3029 - 0.058
                     wrapper_home.pose_command.qx = 1.0
                     wrapper_home.pose_command.qy = 0.0
                     wrapper_home.pose_command.qz = 0.0
@@ -224,11 +230,24 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_p2.pose_command.x = self.PlacePoint[0]
                     wrapper_p2.pose_command.y = self.PlacePoint[1]
-                    wrapper_p2.pose_command.z = self.PlacePoint[2]
+                    wrapper_p2.pose_command.z = self.PlacePoint[2] + 0.04 - 0.058
                     wrapper_p2.pose_command.qx = 1.0
                     wrapper_p2.pose_command.qy = 0.0
                     wrapper_p2.pose_command.qz = 0.0
                     wrapper_p2.pose_command.qw = 0.0
+
+                    # Create a CommandWrapper for the pose command
+                    wrapper_p3 = CommandWrapper()
+                    wrapper_p3.command_type = "pose"
+
+                    # Populate the pose_command with the values from the pose_array
+                    wrapper_p3.pose_command.x = self.PlacePoint[0]
+                    wrapper_p3.pose_command.y = self.PlacePoint[1]
+                    wrapper_p3.pose_command.z = self.PlacePoint[2] + 0.1 - 0.058
+                    wrapper_p3.pose_command.qx = 1.0
+                    wrapper_p3.pose_command.qy = 0.0
+                    wrapper_p3.pose_command.qz = 0.0
+                    wrapper_p3.pose_command.qw = 0.0
 
                     # Create a CommandWrapper for the gripper command to open
                     wrapper_gripper_open = CommandWrapper()
@@ -242,7 +261,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_home.pose_command.x = 0.3408
                     wrapper_home.pose_command.y = 0.0021
-                    wrapper_home.pose_command.z = 0.3029
+                    wrapper_home.pose_command.z = 0.3029 - 0.058
                     wrapper_home.pose_command.qx = 1.0
                     wrapper_home.pose_command.qy = 0.0
                     wrapper_home.pose_command.qz = 0.0
@@ -254,6 +273,7 @@ class PickPlaceNode(Node):
                     # Add the command to the queue and publish
                     queue_msg.commands.append(wrapper_p2)
                     queue_msg.commands.append(wrapper_gripper_open)
+                    queue_msg.commands.append(wrapper_p3)
                     queue_msg.commands.append(wrapper_home)
                     self.command_queue_pub.publish(queue_msg)
 
