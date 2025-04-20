@@ -57,6 +57,24 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
         )]
     )
+    
+    green_rectangle_spawn = TimerAction(
+        period=15.0,  # give Gazebo time to start
+        actions=[Node(
+            package='gazebo_ros',
+            executable='spawn_entity.py',
+            output='screen',
+            arguments=[
+                '-file', os.path.join(
+                    get_package_share_directory('me314_pkg'),
+                    'gazebo_models', 'green_rectangle.sdf'
+                ),
+                '-entity', 'green_rectangle',
+                '-x', '-0.25', '-y', '-0.85', '-z', '1.021', '-Y', '0.5'
+            ],
+            parameters=[{'use_sim_time': True}],
+        )]
+    )
 
     green_square_spawn = TimerAction(
         period=20.0,  # give Gazebo time to start
@@ -81,5 +99,6 @@ def generate_launch_description():
         xarm_moveit_gazebo_launch,
         delayed_commander,
         block_spawn,
+        green_rectangle_spawn,
         green_square_spawn
     ])

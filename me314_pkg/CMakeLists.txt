@@ -36,6 +36,8 @@ install(PROGRAMS
   me314_py/xarm_planner/xarm_a2b_example.py
   me314_py/xarm_planner/xarm_commander.py
   me314_py/xarm_planner/PickPlace.py
+  me314_py/xarm_planner/PickPlaceDollar.py
+  me314_py/xarm_planner/DollarFinderNode.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
