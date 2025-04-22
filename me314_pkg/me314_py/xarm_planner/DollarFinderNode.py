@@ -50,7 +50,11 @@ class DollarFinderNode(Node):
 
         # Subscribers
         # Create a subscriber to get the image from the realsense
-        self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        # self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
+
+        
+        self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        
         # Create a subscriber to boolean topic that tells this node to run
         self.scan_image_for_dollar_subscription = self.create_subscription(
             Bool,  # Message type
@@ -116,6 +120,10 @@ class DollarFinderNode(Node):
         
         quad_info = []  # Store (x, y, w, h) for each quad
         
+  
+        dollar_pose = Pose()
+        square_point = Point()
+
         for cnt in contours:
             area = cv2.contourArea(cnt)
             if area < 500:  # Skip small detections
@@ -167,12 +175,13 @@ class DollarFinderNode(Node):
                         cv2.putText(self.cv_image, f"Dollar, angle: {angle:.1f}°", tuple(box[0]), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
                         
-                        pose = Pose()
-                        pose.position.x = float(center_x)
-                        pose.position.y = float(center_y)
-                        pose.position.z = 1.0
-                        pose.orientation.z = angle
-                        self.dollar_pose_publisher.publish(pose)
+                        #pose = Pose()
+                        dollar_pose.position.x = float(center_x)
+                        dollar_pose.position.y = float(center_y)
+                        dollar_pose.position.z = 1.0
+                        dollar_pose.orientation.z = angle
+                        #self.dollar_pose_publisher.publish(pose)
+                        break
 
                 elif object == "Square":
                     if aspect_ratio < 1.5:
@@ -180,22 +189,29 @@ class DollarFinderNode(Node):
                         cv2.putText(self.cv_image, "Square", tuple(box[0]),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
                         
-                        point = Point()
-                        point.x = float(center_x)
-                        point.y = float(center_y)
-                        point.z = 1.0
-                        self.square_point_publisher.publish(point)
+                        #point = Point()
+                        square_point.x = float(center_x)
+                        square_point.y = float(center_y)
+                        square_point.z = 1.0
+                        #self.square_point_publisher.publish(point)
+                        break
             else:
                 if object == "Dollar":
                     print("Dollar not found")
-                    pose = Pose()
-                    pose.position.z = 0.0
-                    self.dollar_pose_publisher.publish(pose)
+                    #pose = Pose()
+                    dollar_pose.position.z = 0.0
+                    #self.dollar_pose_publisher.publish(pose)
                 elif object == "Square":
                     print("Square not found")
-                    point = Pose()
-                    point.z = 0.0
-                    self.square_point_publisher.publish(point)
+                    #point = Point()
+                    square_point.z = 0.0
+                    #self.square_point_publisher.publish(point)
+
+        if object == 'Dollar':
+            self.dollar_pose_publisher.publish(dollar_pose)
+        elif object == 'Square':
+            self.square_point_publisher.publish(square_point)
+
 
 if __name__ == '__main__':
     rclpy.init()

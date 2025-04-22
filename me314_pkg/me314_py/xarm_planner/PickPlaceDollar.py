@@ -35,6 +35,7 @@ INITIALIZATION = 1
 FINDING_DOLLAR = 2
 FINDING_SQUARE = 3
 PREPPING_GRAB = 4
+DUMMY_STATE = 5
 
 # Events
 ES_TIMEOUT = 11
@@ -52,9 +53,15 @@ class PickPlaceNode(Node):
         self.scan_square_pub = self.create_publisher(Bool, '/scan_square_request', 10)
 
         # Subscribers
-        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
-        self.depth_camera_subscription = self.create_subscription(Image,"/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        # self.DepthCameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/aligned_depth_to_color/camera_info",self.GetDepthCameraIntrinsics,1) # Depth Camera Intrinsics
+        # self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.cameraRGB_callback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        # self.camera_subscription  # prevent unused variable warning
+        self.depth_camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
         self.depth_camera_subscription  # prevent unused variable warning
+        # self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        # self.depth_camera_subscription = self.create_subscription(Image,"/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        # self.depth_camera_subscription  # prevent unused variable warning
         self.CommandSubscriber = self.create_subscription(String,"/me314_xarm_current_command",self.GetCurrentCommand,10) # Current Command in Execution
         self.pose_status_sub = self.create_subscription(Pose, '/me314_xarm_current_pose', self.GetCurrentPose, 10) # Gets Current EE Pose
         self.JointAngleSubscriber = self.create_subscription(JointState, '/me314_xarm_current_joint_positions_deg', self.GetJointAngles, 10) # Gets current joint angles
@@ -165,6 +172,10 @@ class PickPlaceNode(Node):
             self.pixel_x_dollar = msg.position.x
             self.pixel_y_dollar = msg.position.y
             self.dollarAngle = math.radians(msg.orientation.z)
+            if self.dollarAngle > np.pi/2:
+                self.dollarAngle -= np.pi
+            elif self.dollarAngle < -np.pi/2:
+                self.dollarAngle += np.pi
             self.StateMachine(ES_ITEM_DETECTED)
         else:
             self.StateMachine(ES_ITEM_UNDETECTED)
@@ -313,7 +324,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_home.pose_command.x = 0.3408
                 wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029
+                wrapper_home.pose_command.z = 0.3029 - 0.058
                 wrapper_home.pose_command.qx = 1.0
                 wrapper_home.pose_command.qy = 0.0
                 wrapper_home.pose_command.qz = 0.0
@@ -326,7 +337,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_dollar.pose_command.x = self.DollarPoint[0]
                 wrapper_dollar.pose_command.y = self.DollarPoint[1]
-                wrapper_dollar.pose_command.z = self.DollarPoint[2]
+                wrapper_dollar.pose_command.z = self.DollarPoint[2] - 0.01 - 0.058
                 wrapper_dollar.pose_command.qx = 1.0
                 wrapper_dollar.pose_command.qy = 0.0
                 wrapper_dollar.pose_command.qz = 0.0
@@ -367,7 +378,7 @@ class PickPlaceNode(Node):
                 # Create a CommandWrapper for the gripper command to close
                 wrapper_gripper_close = CommandWrapper()
                 wrapper_gripper_close.command_type = "gripper"
-                wrapper_gripper_close.gripper_command.gripper_position = 0.50
+                wrapper_gripper_close.gripper_command.gripper_position = 0.35
 
                 # Create a CommandWrapper for the pose command to move the gripper home
                 wrapper_home = CommandWrapper()
@@ -376,7 +387,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_home.pose_command.x = 0.3408
                 wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029
+                wrapper_home.pose_command.z = 0.3029 - 0.058
                 wrapper_home.pose_command.qx = 1.0
                 wrapper_home.pose_command.qy = 0.0
                 wrapper_home.pose_command.qz = 0.0
@@ -389,7 +400,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_square.pose_command.x = self.PlacePoint[0]
                 wrapper_square.pose_command.y = self.PlacePoint[1]
-                wrapper_square.pose_command.z = self.PlacePoint[2]
+                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05 - 0.058
                 wrapper_square.pose_command.qx = 1.0
                 wrapper_square.pose_command.qy = 0.0
                 wrapper_square.pose_command.qz = 0.0
@@ -407,7 +418,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_home.pose_command.x = 0.3408
                 wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029
+                wrapper_home.pose_command.z = 0.3029 - 0.058
                 wrapper_home.pose_command.qx = 1.0
                 wrapper_home.pose_command.qy = 0.0
                 wrapper_home.pose_command.qz = 0.0
@@ -422,6 +433,9 @@ class PickPlaceNode(Node):
                 self.command_queue_pub.publish(queue_msg)
 
                 self.get_logger().info(f'Orienting Gripper, then performing pick and place on dollar bill')
+                self.state = DUMMY_STATE
+        elif self.state == DUMMY_STATE:
+            2
         
 
 if __name__ == '__main__':
