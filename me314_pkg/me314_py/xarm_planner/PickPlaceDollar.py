@@ -42,10 +42,21 @@ ES_TIMEOUT = 11
 ES_COMMAND_EXECUTED = 12
 ES_ITEM_DETECTED = 13
 ES_ITEM_UNDETECTED = 14
+ES_ITEM_PARTIAL = 15
 
 class PickPlaceNode(Node):
     def __init__(self):
         super().__init__('pick_place_node')
+
+        # Use this to set the name of the camera topics depending on whether we're in sim or real
+        self.usingRealRobot = False
+
+        # Camera Topic Names
+        self.CameraIntrinsicsTopic = "/color/camera_info"
+        self.DepthCameraTopic = "/aligned_depth_to_color/image_raw"
+        if self.usingRealRobot:
+            self.CameraIntrinsicsTopic = "/camera/realsense2_camera_node" + self.CameraIntrinsicsTopic
+            self.DepthCameraTopic = "/camera/realsense2_camera_node" + self.DepthCameraTopic
         
         # Publishers
         self.command_queue_pub = self.create_publisher(CommandQueue, '/me314_xarm_command_queue', 10)
@@ -53,27 +64,27 @@ class PickPlaceNode(Node):
         self.scan_square_pub = self.create_publisher(Bool, '/scan_square_request', 10)
 
         # Subscribers
-        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
-        # self.DepthCameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/aligned_depth_to_color/camera_info",self.GetDepthCameraIntrinsics,1) # Depth Camera Intrinsics
-        # self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.cameraRGB_callback,qos_profile=qos_profile_sensor_data) # RGB Camera
-        # self.camera_subscription  # prevent unused variable warning
-        self.depth_camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        # self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/camera/realsense2_camera_node/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        # self.depth_camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
+        self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,self.CameraIntrinsicsTopic,self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
+        self.depth_camera_subscription = self.create_subscription(Image,self.DepthCameraTopic,self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
         self.depth_camera_subscription  # prevent unused variable warning
-        # self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,"/color/camera_info",self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
-        # self.depth_camera_subscription = self.create_subscription(Image,"/aligned_depth_to_color/image_raw",self.GetDepthCV2Image,qos_profile=qos_profile_sensor_data) # Depth Camera
-        # self.depth_camera_subscription  # prevent unused variable warning
         self.CommandSubscriber = self.create_subscription(String,"/me314_xarm_current_command",self.GetCurrentCommand,10) # Current Command in Execution
         self.pose_status_sub = self.create_subscription(Pose, '/me314_xarm_current_pose', self.GetCurrentPose, 10) # Gets Current EE Pose
         self.JointAngleSubscriber = self.create_subscription(JointState, '/me314_xarm_current_joint_positions_deg', self.GetJointAngles, 10) # Gets current joint angles
         self.dollar_sub = self.create_subscription(Pose, "/dollar_report", self.DollarCallback, 10) # Gets report regarding dollar
         self.square_sub = self.create_subscription(Point, "/square_report", self.SquareCallback, 10) # Gets report regarding square
 
-        ## CV Bridge Initialization
+        # CV Bridge Initialization
         self.bridge = CvBridge()
 
         # Frame Listener Initialization
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Home Position Joint Angles
+        self.home_joints_deg = [0.2, -67.2, -0.2, 24.2, 0.4, 91.4, 0.3]
+        self.home_joints_rad = [math.radians(angle) for angle in self.home_joints_deg]
 
         # Initialization of Various Variables
         self.cv_DepthImage = None
@@ -92,7 +103,9 @@ class PickPlaceNode(Node):
         self.FirstTimeout = False
         self.state = INITIALIZATION
 
+        # Set a timer to repeatedly check if we have Camera Intrinsics and Depth Camera visuals
         self.timer_SM = self.create_timer(2.0, self.TimeoutCallback)
+
     
     def GetTransform(self, target_frame, source_frame):
         try:
@@ -168,7 +181,7 @@ class PickPlaceNode(Node):
         self.previousCommand = command.data
     
     def DollarCallback(self,msg):
-        if msg.position.z:
+        if msg.position.z == 1.0:
             self.pixel_x_dollar = msg.position.x
             self.pixel_y_dollar = msg.position.y
             self.dollarAngle = math.radians(msg.orientation.z)
@@ -177,15 +190,23 @@ class PickPlaceNode(Node):
             elif self.dollarAngle < -np.pi/2:
                 self.dollarAngle += np.pi
             self.StateMachine(ES_ITEM_DETECTED)
-        else:
+        elif msg.position.z == 0.5:
+            self.pixel_x_dollar = msg.position.x
+            self.pixel_y_dollar = msg.position.y
+            self.StateMachine(ES_ITEM_PARTIAL)
+        elif msg.position.z == 0.0:
             self.StateMachine(ES_ITEM_UNDETECTED)
     
     def SquareCallback(self,msg):
-        if msg.z:
+        if msg.z == 1.0:
             self.pixel_x_square = msg.x
             self.pixel_y_square = msg.y
             self.StateMachine(ES_ITEM_DETECTED)
-        else:
+        elif msg.z == 0.5:
+            self.pixel_x_square = msg.x
+            self.pixel_y_square = msg.y
+            self.StateMachine(ES_ITEM_PARTIAL)
+        elif msg.z == 0.0:
             self.StateMachine(ES_ITEM_UNDETECTED)
     
     def TimeoutCallback(self):
@@ -217,7 +238,7 @@ class PickPlaceNode(Node):
                 msg = Bool()
                 msg.data = True
                 self.scan_dollar_pub.publish(msg)
-                self.get_logger().info(f'Camera has been moved up . . . Sending Request to find dollar bill')
+                self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find dollar bill')
             elif Event == ES_ITEM_UNDETECTED:
                 # If the dollar is not in the frame of view, move the camera up by 0.1m
 
@@ -245,6 +266,42 @@ class PickPlaceNode(Node):
                 self.command_queue_pub.publish(queue_msg)
 
                 self.get_logger().info(f'Dollar not found . . . Moving camera up to expand view')
+            elif Event == ES_ITEM_PARTIAL:
+                # If the dollar is detected, but is too close to the border, move the camera a quarter of the distance in the direction of the dollar
+                # Start by finding/updating the transformation matrix from the camera frame to the base frame
+                target_frame = 'link_base'
+                source_frame = 'camera_color_optical_frame'
+                self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                # Don't move onto the next part in the code until we've found the transformation matrix
+                while not haveTransform:
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                # Get the center of the dollar in the base frame
+                partialDollarPoint = self.getPointInBaseFrame(self.pixel_x_dollar,self.pixel_y_dollar)
+
+                # Create a CommandQueue message
+                queue_msg = CommandQueue()
+                queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                # Create a CommandWrapper for the pose command
+                wrapper_side = CommandWrapper()
+                wrapper_side.command_type = "pose"
+
+                # Populate the pose_command with the values from the pose_array
+                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialDollarPoint[0] - self.EE_pos[0])
+                wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialDollarPoint[1] - self.EE_pos[1])
+                wrapper_side.pose_command.z = self.EE_pos[2]
+                wrapper_side.pose_command.qx = 1.0
+                wrapper_side.pose_command.qy = 0.0
+                wrapper_side.pose_command.qz = 0.0
+                wrapper_side.pose_command.qw = 0.0
+
+                # Specify the final command in this queue for re-entry purposes
+                self.finalCommand = "Pose"
+
+                queue_msg.commands.append(wrapper_side)
+                self.command_queue_pub.publish(queue_msg)
+
+                self.get_logger().info(f'Dollar found, but not entirely in frame . . . Moving camera sideways in direction of dollar')
             elif Event == ES_ITEM_DETECTED:
                 # Start by finding/updating the transformation matrix from the camera frame to the base frame
                 target_frame = 'link_base'
@@ -268,7 +325,7 @@ class PickPlaceNode(Node):
                 msg = Bool()
                 msg.data = True
                 self.scan_square_pub.publish(msg)
-                self.get_logger().info(f'Camera has been moved up . . . Sending Request to find green square')
+                self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find green square')
             elif Event == ES_ITEM_UNDETECTED:
                 # If the green square is not in the frame of view, move the camera up by 0.1m
 
@@ -296,6 +353,42 @@ class PickPlaceNode(Node):
                 self.command_queue_pub.publish(queue_msg)
 
                 self.get_logger().info(f'Square not found . . . Moving camera up to expand view')
+            elif Event == ES_ITEM_PARTIAL:
+                # If the dollar is detected, but is too close to the border, move the camera a quarter of the distance in the direction of the dollar
+                # Start by finding/updating the transformation matrix from the camera frame to the base frame
+                target_frame = 'link_base'
+                source_frame = 'camera_color_optical_frame'
+                self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                # Don't move onto the next part in the code until we've found the transformation matrix
+                while not haveTransform:
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                # Get the center of the dollar in the base frame
+                partialPlacePoint = self.getPointInBaseFrame(self.pixel_x_square,self.pixel_y_square)
+
+                # Create a CommandQueue message
+                queue_msg = CommandQueue()
+                queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                # Create a CommandWrapper for the pose command
+                wrapper_side = CommandWrapper()
+                wrapper_side.command_type = "pose"
+
+                # Populate the pose_command with the values from the pose_array
+                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialPlacePoint[0] - self.EE_pos[0])
+                wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialPlacePoint[1] - self.EE_pos[1])
+                wrapper_side.pose_command.z = self.EE_pos[2]
+                wrapper_side.pose_command.qx = 1.0
+                wrapper_side.pose_command.qy = 0.0
+                wrapper_side.pose_command.qz = 0.0
+                wrapper_side.pose_command.qw = 0.0
+
+                # Specify the final command in this queue for re-entry purposes
+                self.finalCommand = "Pose"
+
+                queue_msg.commands.append(wrapper_side)
+                self.command_queue_pub.publish(queue_msg)
+
+                self.get_logger().info(f'Square found, but not entirely in frame . . . Moving camera sideways in direction of square')
             elif Event == ES_ITEM_DETECTED:
                 # Start by finding/updating the transformation matrix from the camera frame to the base frame
                 target_frame = 'link_base'
@@ -319,16 +412,16 @@ class PickPlaceNode(Node):
 
                 # Create a CommandWrapper for the pose command to move the gripper home
                 wrapper_home = CommandWrapper()
-                wrapper_home.command_type = "pose"
+                wrapper_home.command_type = "joint"
 
-                # Populate the pose_command with the values from the pose_array
-                wrapper_home.pose_command.x = 0.3408
-                wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029 - 0.058
-                wrapper_home.pose_command.qx = 1.0
-                wrapper_home.pose_command.qy = 0.0
-                wrapper_home.pose_command.qz = 0.0
-                wrapper_home.pose_command.qw = 0.0
+                # Populate the joint command accordingly
+                wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
+                wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
+                wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
+                wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
+                wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
+                wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
+                wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
 
                 # Create a CommandWrapper for the pose command to move the gripper to the dollar bill
                 wrapper_dollar = CommandWrapper()
@@ -337,7 +430,9 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_dollar.pose_command.x = self.DollarPoint[0]
                 wrapper_dollar.pose_command.y = self.DollarPoint[1]
-                wrapper_dollar.pose_command.z = self.DollarPoint[2] - 0.01 - 0.058
+                wrapper_dollar.pose_command.z = self.DollarPoint[2] - 0.01# - 0.058
+                if self.usingRealRobot:
+                    wrapper_dollar.pose_command.z -= 0.058
                 wrapper_dollar.pose_command.qx = 1.0
                 wrapper_dollar.pose_command.qy = 0.0
                 wrapper_dollar.pose_command.qz = 0.0
@@ -363,6 +458,7 @@ class PickPlaceNode(Node):
                 queue_msg = CommandQueue()
                 queue_msg.header.stamp = self.get_clock().now().to_msg()
 
+                # Create a Wrapper for a Joint Message
                 wrapper_joint = CommandWrapper()
                 wrapper_joint.command_type = "joint"
 
@@ -382,16 +478,16 @@ class PickPlaceNode(Node):
 
                 # Create a CommandWrapper for the pose command to move the gripper home
                 wrapper_home = CommandWrapper()
-                wrapper_home.command_type = "pose"
+                wrapper_home.command_type = "joint"
 
-                # Populate the pose_command with the values from the pose_array
-                wrapper_home.pose_command.x = 0.3408
-                wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029 - 0.058
-                wrapper_home.pose_command.qx = 1.0
-                wrapper_home.pose_command.qy = 0.0
-                wrapper_home.pose_command.qz = 0.0
-                wrapper_home.pose_command.qw = 0.0
+                # Populate the joint command accordingly
+                wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
+                wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
+                wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
+                wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
+                wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
+                wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
+                wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
 
                 # Create a CommandWrapper for the pose command
                 wrapper_square = CommandWrapper()
@@ -400,7 +496,9 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_square.pose_command.x = self.PlacePoint[0]
                 wrapper_square.pose_command.y = self.PlacePoint[1]
-                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05 - 0.058
+                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05# - 0.058
+                if self.usingRealRobot:
+                    wrapper_square.pose_command.z -= 0.058
                 wrapper_square.pose_command.qx = 1.0
                 wrapper_square.pose_command.qy = 0.0
                 wrapper_square.pose_command.qz = 0.0
@@ -413,16 +511,16 @@ class PickPlaceNode(Node):
 
                 # Create a CommandWrapper for the pose command
                 wrapper_home = CommandWrapper()
-                wrapper_home.command_type = "pose"
+                wrapper_home.command_type = "joint"
 
-                # Populate the pose_command with the values from the pose_array
-                wrapper_home.pose_command.x = 0.3408
-                wrapper_home.pose_command.y = 0.0021
-                wrapper_home.pose_command.z = 0.3029 - 0.058
-                wrapper_home.pose_command.qx = 1.0
-                wrapper_home.pose_command.qy = 0.0
-                wrapper_home.pose_command.qz = 0.0
-                wrapper_home.pose_command.qw = 0.0
+                # Populate the joint command accordingly
+                wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
+                wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
+                wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
+                wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
+                wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
+                wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
+                wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
 
                 queue_msg.commands.append(wrapper_joint)
                 queue_msg.commands.append(wrapper_gripper_close)

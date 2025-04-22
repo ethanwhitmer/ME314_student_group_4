@@ -50,10 +50,10 @@ class DollarFinderNode(Node):
 
         # Subscribers
         # Create a subscriber to get the image from the realsense
-        # self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
 
         
-        self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
+        #self.camera_subscription = self.create_subscription(Image,"/camera/realsense2_camera_node/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
         
         # Create a subscriber to boolean topic that tells this node to run
         self.scan_image_for_dollar_subscription = self.create_subscription(
