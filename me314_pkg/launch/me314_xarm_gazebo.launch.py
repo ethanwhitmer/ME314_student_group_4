@@ -2,7 +2,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -12,6 +12,16 @@ def generate_launch_description():
     initial_delay = ExecuteProcess(
         cmd=["sleep", "5"],
         name="initial_delay"
+    )
+
+    # Get package share directory
+    pkg_dir = get_package_share_directory('me314_pkg')
+    models_path = os.path.join(pkg_dir, 'gazebo_models')
+
+    # Set GAZEBO_MODEL_PATH to include your custom models
+    set_gazebo_model_path = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_PATH',
+        value=[os.environ.get('GAZEBO_MODEL_PATH', ''), models_path]
     )
 
     # Include the xarm7 MoveIt+Gazebo launch
@@ -95,6 +105,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        set_gazebo_model_path,
         initial_delay,
         xarm_moveit_gazebo_launch,
         delayed_commander,

@@ -60,6 +60,13 @@ install(
 )
 
 # ==============================
+# Install vision models
+# ==============================
+install(DIRECTORY models/
+  DESTINATION share/${PROJECT_NAME}/models
+)
+
+# ==============================
 # Install package.xml
 # ==============================
 install(

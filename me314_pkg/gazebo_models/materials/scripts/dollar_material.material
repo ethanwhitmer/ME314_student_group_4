@@ -1,0 +1,13 @@
+material DollarTexture
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture dollar_texture.JPG
+      }
+    }
+  }
+}
