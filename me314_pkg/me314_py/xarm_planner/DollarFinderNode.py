@@ -168,11 +168,33 @@ class DollarFinderNode(Node):
         y_max = box[1] + box[3] / 2
         return np.array([x_min, y_min, x_max, y_max]) 
 
+    def is_fully_visible(self,box, image_width, image_height, margin=0):
+        """
+        Check if a bounding box is fully inside the frame (with optional margin).
+        Args:
+            box_xyxy: [x_min, y_min, x_max, y_max] in pixels
+            image_width, image_height: Frame dimensions
+            margin: Safety margin (pixels) to exclude edge-touching boxes
+        Returns:
+            bool: True if fully inside frame, False otherwise
+        """
+        x_min = np.min(box[:, 0])  
+        y_min = np.min(box[:, 1])  
+        x_max = np.max(box[:, 0])  
+        y_max = np.max(box[:, 1])
+        return (
+            x_min >= margin and
+            y_min >= margin and
+            x_max <= (image_width - margin) and
+            y_max <= (image_height - margin)
+        )
+
     def getObjectPose(self, object):
         dollar_pose = Pose()
         square_point = Point()
         # Case to look for dollar
         if object == "Dollar":
+            print("Looking for dollar")
             # Prepare image to input into Grounding Dino
             frame_pil = PIL_Image.fromarray(self.cv_image)
             frame_transformed, _ = self.transform(frame_pil, None)
@@ -230,43 +252,51 @@ class DollarFinderNode(Node):
                         
                         # Draw center point
                         cv2.circle(self.cv_image, center, 5, (255, 0, 255), -1)
-                        
-                        # Get width and height (sorted so w > h)
-                        w, h = sorted([rect[1][0], rect[1][1]], reverse=True)
 
-                        # Find the bottom left point
-                        sorted_by_y = sorted(box, key=lambda p: -p[1])  # Sort by Y descending
-                        # Compare the distances of each point to the bottom left point
-                        dist = np.linalg.norm(box - sorted_by_y[0], axis=1)
-                        # Get the distances of the two closes points
-                        closest_points_index =  np.argsort(dist)[1:3]
-                        # Create two vectors from the bottom left point of the rectangle to the closest two points
-                        vector1 = box[closest_points_index[0]] - sorted_by_y[0]
-                        vector2 = box[closest_points_index[1]] - sorted_by_y[0]
-                        if np.linalg.norm(vector1) < np.linalg.norm(vector2):
-                            vector = vector1
+                        if not self.is_fully_visible(box, self.cv_image.shape[1], self.cv_image.shape[0], margin=5):
+                            print("Dollar not fully in frame")
+
+                            dollar_pose.position.x = float(center_x)
+                            dollar_pose.position.y = float(center_y)
+                            dollar_pose.position.z = 0.5
+                            
+                            break
                         else:
-                            vector = vector2
+                            print("Dollar fully in frame")
+                            # Find the bottom left point
+                            sorted_by_y = sorted(box, key=lambda p: -p[1])  # Sort by Y descending
+                            # Compare the distances of each point to the bottom left point
+                            dist = np.linalg.norm(box - sorted_by_y[0], axis=1)
+                            # Get the distances of the two closes points
+                            closest_points_index =  np.argsort(dist)[1:3]
+                            # Create two vectors from the bottom left point of the rectangle to the closest two points
+                            vector1 = box[closest_points_index[0]] - sorted_by_y[0]
+                            vector2 = box[closest_points_index[1]] - sorted_by_y[0]
+                            if np.linalg.norm(vector1) < np.linalg.norm(vector2):
+                                vector = vector1
+                            else:
+                                vector = vector2
 
-                        angle = self.AngleBetweenVectors(vector, np.array([1,0]))
-                        cv2.putText(self.cv_image, f"Dollar, angle: {angle:.1f}", tuple(box[0]), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
-                        
-                        # Display center coordinates
-                        cv2.putText(self.cv_image, f"Center: ({center_x}, {center_y})", 
-                                (center_x + 20, center_y), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                            angle = self.AngleBetweenVectors(vector, np.array([1,0]))
+                            cv2.putText(self.cv_image, f"Dollar, angle: {angle:.1f}", tuple(box[0]), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+                            
+                            # Display center coordinates
+                            cv2.putText(self.cv_image, f"Center: ({center_x}, {center_y})", 
+                                    (center_x + 20, center_y), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                        dollar_pose.position.x = float(center_x)
-                        dollar_pose.position.y = float(center_y)
-                        dollar_pose.position.z = 1.0
-                        dollar_pose.orientation.z = angle
-                        break
+                            dollar_pose.position.x = float(center_x)
+                            dollar_pose.position.y = float(center_y)
+                            dollar_pose.position.z = 1.0
+                            dollar_pose.orientation.z = angle
+                            break
             else:
                 print("Dollar not found")
                 dollar_pose.position.z = 0.0
             self.dollar_pose_publisher.publish(dollar_pose)
         elif object == "Square":
+            print("Looking for square")
             hsv = cv2.cvtColor(self.cv_image, cv2.COLOR_RGB2HSV)
             lower_green = np.array([40, 40, 40])
             upper_green = np.array([70, 255, 255])
@@ -313,7 +343,7 @@ class DollarFinderNode(Node):
                 else:
                     print("Square not found")
                     square_point.z = 0.0            
-        self.square_point_publisher.publish(square_point)
+            self.square_point_publisher.publish(square_point)
         if self.visualize:
             cv2.imshow("Visualization",cv2.cvtColor(self.cv_image, cv2.COLOR_RGB2BGR))
         cv2.waitKey(0)

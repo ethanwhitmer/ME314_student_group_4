@@ -80,7 +80,7 @@ def generate_launch_description():
                     'gazebo_models', 'green_rectangle.sdf'
                 ),
                 '-entity', 'green_rectangle',
-                '-x', '-0.25', '-y', '-0.85', '-z', '1.021', '-Y', '0.5'
+                '-x', '-0.15', '-y', '-0.90', '-z', '1.021', '-Y', '0.5'
             ],
             parameters=[{'use_sim_time': True}],
         )]

@@ -474,7 +474,7 @@ class PickPlaceNode(Node):
                 # Create a CommandWrapper for the gripper command to close
                 wrapper_gripper_close = CommandWrapper()
                 wrapper_gripper_close.command_type = "gripper"
-                wrapper_gripper_close.gripper_command.gripper_position = 0.65
+                wrapper_gripper_close.gripper_command.gripper_position = 0.50
 
                 # Create a CommandWrapper for the pose command to move the gripper home
                 wrapper_home = CommandWrapper()
