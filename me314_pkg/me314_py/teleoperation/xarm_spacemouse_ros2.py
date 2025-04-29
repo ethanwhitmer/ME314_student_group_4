@@ -2,8 +2,8 @@
 
 import rclpy
 from rclpy.node import Node
-from robot_learning.hardware.drivers.spacemouse import SpaceMouse
-from robot_learning.hardware.drivers.input2action import input2action
+from me314_py.teleoperation.spacemouse import SpaceMouse
+from me314_py.teleoperation.input2action import input2action
 import numpy as np
 import tkinter as tk
 from xarm.wrapper import XArmAPI
@@ -57,19 +57,25 @@ class Spacemouse2Xarm(Node):
         self.reset_sub = self.create_subscription(Bool, 'reset_xarm', self.reset_callback, 10)
         self.is_resetting = False
 
-        # --- GUI for the gripper slider ---
+        # --- GUI for the gripper slider (UPDATED with larger size) ---
         self.root = tk.Tk()
         self.root.title("Gripper Control")
-        self.root.geometry("800x200")
+        self.root.geometry("1500x300")  # Larger window
+        
         self.slider = tk.Scale(
             self.root,
-            from_=0, to=1, resolution=0.01,
+            from_=0, to=1, 
+            resolution=0.01,
             orient='horizontal',
             label='Gripper Open/Close',
             command=self.update_gripper,
-            length=600
+            length=1300,  # Longer slider
+            width=70,     # Thicker slider
+            font=('Arial', 14, 'bold'),  # Larger font
+            troughcolor='#E0E0E0',  # Light gray background
+            sliderlength=60  # Larger slider handle
         )
-        self.slider.pack(fill=tk.X, expand=True)
+        self.slider.pack(fill=tk.X, expand=True, padx=20, pady=50)  # More padding
         self.slider.set(0)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.gripper_position = 0.0
@@ -110,7 +116,7 @@ class Spacemouse2Xarm(Node):
         self.arm.set_state(0)
         # self.arm.set_position(x=182.9, y=-6.5, z=134.5, roll=176.8, pitch=1.3, yaw=0.7, speed=100, is_radian=False, wait=True)
         # for SOFT Gripper we need to set the home position to be slightly higher
-        self.arm.set_position(x=182.9, y=-6.5, z=140.0, roll=176.8, pitch=1.3, yaw=0.7, speed=100, is_radian=False, wait=True)
+        self.arm.set_position(x=166.8, y=1.8, z=244.8, roll=179.1, pitch=0, yaw=1.2, speed=100, is_radian=False, wait=True)
         self.arm.motion_enable(enable=True)
         self.arm.set_mode(1)
         self.arm.set_state(0)
