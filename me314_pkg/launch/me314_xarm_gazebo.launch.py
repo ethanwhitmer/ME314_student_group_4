@@ -35,7 +35,8 @@ def generate_launch_description():
         ),
         launch_arguments={
             'add_gripper': 'true',
-            'add_realsense_d435i': 'true'
+            'add_realsense_d435i': 'true',
+            'add_ft_sensor': 'true',
         }.items()
     )
 

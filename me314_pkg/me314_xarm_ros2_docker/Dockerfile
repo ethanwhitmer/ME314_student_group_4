@@ -25,7 +25,7 @@ RUN sudo apt install -y ros-humble-realsense2-*
 
 # Clone xarm_ros2
 RUN mkdir -p /home/ubuntu/xarm_ros2_ws/src && cd  /home/ubuntu/xarm_ros2_ws/src \
-    && git clone https://github.com/RealSoloQ/xarm_ros2.git --recursive -b $ROS_DISTRO
+    && git clone https://github.com/Realexqiu/xarm_ros2.git --recursive -b $ROS_DISTRO
 
 RUN cd /home/ubuntu/xarm_ros2_ws/src/ && rosdep update && rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y --skip-keys="roscpp catkin"
 
@@ -33,9 +33,6 @@ RUN cd /home/ubuntu/xarm_ros2_ws/src/xarm_ros2 && git pull \
     && git submodule sync && git submodule update --init --remote
     
 RUN mkdir -p /home/ubuntu/xarm_ros2_ws/src/me314
-
-# # Clone ME314_XArm
-# RUN cd  /home/ubuntu/xarm_ros2_ws/src && git clone https://github.com/RealSoloQ/ME314_Student.git
 
 RUN source /opt/ros/humble/setup.bash && cd /home/ubuntu/xarm_ros2_ws/ && colcon build
 
