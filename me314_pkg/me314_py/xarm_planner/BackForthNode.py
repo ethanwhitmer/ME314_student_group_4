@@ -111,8 +111,6 @@ class BackForthNode(Node):
                     # Create a CommandWrapper for the pose command
                     wrapper_up = CommandWrapper()
                     wrapper_up.command_type = "pose"
-
-                    # Populate the pose_command with the values from the pose_array
                     wrapper_up.pose_command.x = self.position1[0]
                     wrapper_up.pose_command.y = self.position1[1]
                     wrapper_up.pose_command.z = self.position1[2]
@@ -139,8 +137,6 @@ class BackForthNode(Node):
                 # Create a CommandWrapper for the pose command
                 wrapper_up = CommandWrapper()
                 wrapper_up.command_type = "pose"
-
-                # Populate the pose_command with the values from the pose_array
                 wrapper_up.pose_command.x = self.position2[0]
                 wrapper_up.pose_command.y = self.position2[1]
                 wrapper_up.pose_command.z = self.position2[2]
@@ -176,8 +172,6 @@ class BackForthNode(Node):
                 # Create a CommandWrapper for the pose command
                 wrapper_up = CommandWrapper()
                 wrapper_up.command_type = "pose"
-
-                # Populate the pose_command with the values from the pose_array
                 wrapper_up.pose_command.x = self.position1[0]
                 wrapper_up.pose_command.y = self.position1[1]
                 wrapper_up.pose_command.z = self.position1[2]
@@ -218,8 +212,6 @@ class BackForthNode(Node):
                     # Create a CommandWrapper for the pose command
                     wrapper_up = CommandWrapper()
                     wrapper_up.command_type = "pose"
-
-                    # Populate the pose_command with the values from the pose_array
                     wrapper_up.pose_command.qx = 1.0
                     wrapper_up.pose_command.qy = 0.0
                     wrapper_up.pose_command.qz = 0.0

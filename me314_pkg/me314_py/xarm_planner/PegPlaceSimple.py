@@ -34,8 +34,7 @@ from sensor_msgs.msg import JointState
 INITIALIZATION = 1
 FINDING_ITEM = 2
 FINDING_SQUARE = 3
-PREPPING_GRAB = 4
-DUMMY_STATE = 5
+DUMMY_STATE = 4
 
 # Events
 ES_TIMEOUT = 11
@@ -44,12 +43,12 @@ ES_ITEM_DETECTED = 13
 ES_ITEM_UNDETECTED = 14
 ES_ITEM_PARTIAL = 15
 
-class PickPlaceCoinNode(Node):
+class PegPlaceNode(Node):
     def __init__(self):
-        super().__init__('pick_place_coin_node')
+        super().__init__('peg_place_node')
 
         # Use this to set the name of the camera topics depending on whether we're in sim or real
-        self.usingRealRobot = False
+        self.usingRealRobot = True
 
         # Camera Topic Names
         self.CameraIntrinsicsTopic = "/color/camera_info"
@@ -62,7 +61,7 @@ class PickPlaceCoinNode(Node):
         
         # Publishers
         self.command_queue_pub = self.create_publisher(CommandQueue, '/me314_xarm_command_queue', 10)
-        self.scan_coin_pub = self.create_publisher(Bool, '/scan_coin_request', 10)
+        self.extracted_pub = self.create_publisher(Image,"/me314_xarm/camera/image_extracted", 1)
 
         # Subscribers
         self.CameraIntrinicsSubscriber = self.create_subscription(CameraInfo,self.CameraIntrinsicsTopic,self.GetCameraIntrinsics,1) # RGB Camera Intrinsics
@@ -73,7 +72,6 @@ class PickPlaceCoinNode(Node):
         self.CommandSubscriber = self.create_subscription(String,"/me314_xarm_current_command",self.GetCurrentCommand,10) # Current Command in Execution
         self.pose_status_sub = self.create_subscription(Pose, '/me314_xarm_current_pose', self.GetCurrentPose, 10) # Gets Current EE Pose
         self.JointAngleSubscriber = self.create_subscription(JointState, '/me314_xarm_current_joint_positions_deg', self.GetJointAngles, 10) # Gets current joint angles
-        self.coin_sub = self.create_subscription(Point, "/coin_report", self.CoinCallback, 10) # Gets report regarding coin
 
         # CV Bridge Initialization
         self.bridge = CvBridge()
@@ -87,6 +85,7 @@ class PickPlaceCoinNode(Node):
         self.home_joints_rad = [math.radians(angle) for angle in self.home_joints_deg]
 
         # Initialization of Various Variables
+        self.cv_ColorImage = None
         self.cv_DepthImage = None
         self.alpha = None
         self.beta = None
@@ -105,7 +104,7 @@ class PickPlaceCoinNode(Node):
         self.state = INITIALIZATION
 
         # Set a timer to repeatedly check if we have Camera Intrinsics and Depth Camera visuals
-        self.timer_SM = self.create_timer(2.0, self.TimeoutCallback)
+        self.timer_SM = self.create_timer(1.0, self.TimeoutCallback)
 
     
     def GetTransform(self, target_frame, source_frame):
@@ -185,27 +184,47 @@ class PickPlaceCoinNode(Node):
                 self.StateMachine(ES_COMMAND_EXECUTED)
         self.previousCommand = command.data
     
-    def CoinCallback(self,msg):
-        if msg.z == 1.0:
-            self.pixel_x_item = msg.x
-            self.pixel_y_item = msg.y
-            self.StateMachine(ES_ITEM_DETECTED)
-        else:
-            self.StateMachine(ES_ITEM_UNDETECTED)
-    
-    def findCenterGreenPixel(self):
+    def findCenterRedPixel(self):
         hsv_img = cv2.cvtColor(self.cv_ColorImage,cv2.COLOR_RGB2HSV)
-        lower_bound = np.array([40, 50, 0])
-        upper_bound = np.array([80, 255, 255])
+        lower_bound = np.array([0, 100, 90])
+        upper_bound = np.array([10, 255, 255])
         mask_img = cv2.inRange(hsv_img, lower_bound, upper_bound)
         # modified_img = cv2.bitwise_and(self.cv_ColorImage, self.cv_ColorImage, mask=mask_img)
         # self.extracted_pub.publish(self.bridge.cv2_to_imgmsg(modified_img, "rgb8"))
-        cube_points = [[u,v] for u in range(mask_img.shape[0]) for v in range(mask_img.shape[1]) if mask_img[u,v]>0 ]
+        verticalSize = mask_img.shape[0]
+        horizontalSize = mask_img.shape[1]
+        cube_points = [[y,x] for y in range(verticalSize) for x in range(horizontalSize) if mask_img[y,x]>0 ]
+        if len(cube_points) != 0:
+            cube_center = np.floor(np.mean(cube_points,0))
+            self.pixel_x_item = int(cube_center[1])
+            self.pixel_y_item = int(cube_center[0])
+            if (self.pixel_x_item > 0.2 * horizontalSize and self.pixel_x_item < 0.8 * horizontalSize
+            and self.pixel_y_item > 0.2 * verticalSize and self.pixel_y_item < 0.8 * verticalSize):
+                return ES_ITEM_DETECTED
+            else:
+                return ES_ITEM_PARTIAL
+        else:
+            return ES_ITEM_UNDETECTED
+    
+    def findCenterBluePixel(self):
+        hsv_img = cv2.cvtColor(self.cv_ColorImage,cv2.COLOR_RGB2HSV)
+        lower_bound = np.array([108, 100, 0])
+        upper_bound = np.array([140, 255, 255])
+        mask_img = cv2.inRange(hsv_img, lower_bound, upper_bound)
+        # modified_img = cv2.bitwise_and(self.cv_ColorImage, self.cv_ColorImage, mask=mask_img)
+        # self.extracted_pub.publish(self.bridge.cv2_to_imgmsg(modified_img, "rgb8"))
+        verticalSize = mask_img.shape[0]
+        horizontalSize = mask_img.shape[1]
+        cube_points = [[y,x] for y in range(verticalSize) for x in range(horizontalSize) if mask_img[y,x]>0 ]
         if len(cube_points) != 0:
             cube_center = np.floor(np.mean(cube_points,0))
             self.pixel_x_square = int(cube_center[1])
             self.pixel_y_square = int(cube_center[0])
-            return ES_ITEM_DETECTED
+            if (self.pixel_x_square > 0.2 * horizontalSize and self.pixel_x_square < 0.8 * horizontalSize
+            and self.pixel_y_square > 0.2 * verticalSize and self.pixel_y_square < 0.8 * verticalSize):
+                return ES_ITEM_DETECTED
+            else:
+                return ES_ITEM_PARTIAL
         else:
             return ES_ITEM_UNDETECTED
     
@@ -223,78 +242,25 @@ class PickPlaceCoinNode(Node):
         if self.state == INITIALIZATION:
             if Event == ES_TIMEOUT:
                 # The only point of this state is to ensure we have all the camera stuff before we start looking for the dollar
-                # This state is entered by a timer timing out every 2 seconds
+                # This state is entered by a timer timing out every second
                 self.get_logger().info(f'Checking if camera stuff has been obtained')
                 if self.haveDepthImage and self.haveIntrinsics_RBG and self.haveColorImage:
-                    self.CancelTimerSM()
-                    msg = Bool()
-                    msg.data = True
-                    self.scan_coin_pub.publish(msg)
                     self.state = FINDING_ITEM
-                    self.get_logger().info(f'Camera stuff has been obtained . . . Sending Request to find coin')
+                    self.get_logger().info(f'Camera stuff has been obtained . . . Sending Request to find peg')
         elif self.state == FINDING_ITEM:
-            if Event == ES_COMMAND_EXECUTED:
-                # Camera has been moved up - search for coin again
-                msg = Bool()
-                msg.data = True
-                self.scan_coin_pub.publish(msg)
-                self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find coin')
-            elif Event == ES_ITEM_UNDETECTED:
-                # If the coin is not in the frame of view, move the camera up by 0.1m
-
-                # Create a CommandQueue message
-                queue_msg = CommandQueue()
-                queue_msg.header.stamp = self.get_clock().now().to_msg()
-
-                # Create a CommandWrapper for the pose command
-                wrapper_up = CommandWrapper()
-                wrapper_up.command_type = "pose"
-
-                # Populate the pose_command with the values from the pose_array
-                wrapper_up.pose_command.x = self.EE_pos[0]
-                wrapper_up.pose_command.y = self.EE_pos[1]
-                wrapper_up.pose_command.z = self.EE_pos[2] + 0.1
-                wrapper_up.pose_command.qx = 1.0
-                wrapper_up.pose_command.qy = 0.0
-                wrapper_up.pose_command.qz = 0.0
-                wrapper_up.pose_command.qw = 0.0
-
-                # Specify the final command in this queue for re-entry purposes
-                self.finalCommand = "Pose"
-
-                queue_msg.commands.append(wrapper_up)
-                self.command_queue_pub.publish(queue_msg)
-
-                self.get_logger().info(f'Coin not found . . . Moving camera up to expand view')
-            elif Event == ES_ITEM_DETECTED:
-                # Start by finding/updating the transformation matrix from the camera frame to the base frame
-                target_frame = 'link_base'
-                source_frame = 'camera_color_optical_frame'
-                self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
-                # Don't move onto the next part in the code until we've found the transformation matrix
-                while not haveTransform:
-                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
-                # Get the center of the dollar in the base frame
-                self.ItemPoint = self.getPointInBaseFrame(self.pixel_x_item,self.pixel_y_item)
-                # Change state
-                self.state = FINDING_SQUARE
-                self.get_logger().info(f'Coin found . . . now it is time to look for green square')
-                # Set a timer to force the State Machine to run in the next state
-                self.timer_SM = self.create_timer(0.1, self.TimeoutCallback)
-        elif self.state == FINDING_SQUARE:
             if Event == ES_TIMEOUT or Event == ES_COMMAND_EXECUTED:
                 if Event == ES_TIMEOUT:
                     # Stop the timer, as the State Machine is able to continue running on its own in this state
                     self.CancelTimerSM()
-                    self.get_logger().info(f'Looking for the green square')
+                    self.get_logger().info(f'Looking for the red peg')
                 else:
                     # Camera has been moved up - search for square again
-                    self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find green square')
-                # Search for the center of the green square
-                result = self.findCenterGreenPixel()
+                    self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find red peg')
+                # Search for the center of the red peg
+                result = self.findCenterRedPixel()
                 # Act accordingly
                 if result == ES_ITEM_UNDETECTED:
-                    # If the green square is not in the frame of view, move the camera up by 0.1m
+                    # If the red peg is not in the frame of view, move the camera up by 0.1m
 
                     # Create a CommandQueue message
                     queue_msg = CommandQueue()
@@ -303,8 +269,6 @@ class PickPlaceCoinNode(Node):
                     # Create a CommandWrapper for the pose command
                     wrapper_up = CommandWrapper()
                     wrapper_up.command_type = "pose"
-
-                    # Populate the pose_command with the values from the pose_array
                     wrapper_up.pose_command.x = self.EE_pos[0]
                     wrapper_up.pose_command.y = self.EE_pos[1]
                     wrapper_up.pose_command.z = self.EE_pos[2] + 0.1
@@ -319,7 +283,127 @@ class PickPlaceCoinNode(Node):
                     queue_msg.commands.append(wrapper_up)
                     self.command_queue_pub.publish(queue_msg)
 
-                    self.get_logger().info(f'Square not found . . . Moving camera up to expand view')
+                    self.get_logger().info(f'Peg not found . . . Moving camera up to expand view')
+                elif result == ES_ITEM_PARTIAL:
+                    # If the peg is detected, but is too close to the border, move the camera a quarter of the distance in the direction of the peg
+                    # Start by finding/updating the transformation matrix from the camera frame to the base frame
+                    target_frame = 'link_base'
+                    source_frame = 'camera_color_optical_frame'
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Don't move onto the next part in the code until we've found the transformation matrix
+                    while not haveTransform:
+                        self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Get the center of the peg in the base frame
+                    partialItemPoint = self.getPointInBaseFrame(self.pixel_x_item,self.pixel_y_item)
+
+                    # Create a CommandQueue message
+                    queue_msg = CommandQueue()
+                    queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                    # Create a CommandWrapper for the pose command
+                    wrapper_side = CommandWrapper()
+                    wrapper_side.command_type = "pose"
+                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialItemPoint[0] - self.EE_pos[0])
+                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialItemPoint[1] - self.EE_pos[1])
+                    wrapper_side.pose_command.z = self.EE_pos[2]
+                    wrapper_side.pose_command.qx = 1.0
+                    wrapper_side.pose_command.qy = 0.0
+                    wrapper_side.pose_command.qz = 0.0
+                    wrapper_side.pose_command.qw = 0.0
+
+                    # Specify the final command in this queue for re-entry purposes
+                    self.finalCommand = "Pose"
+
+                    queue_msg.commands.append(wrapper_side)
+                    self.command_queue_pub.publish(queue_msg)
+
+                    self.get_logger().info(f'Red Peg found, but not entirely in frame . . . Moving camera sideways in direction of peg')
+                elif result == ES_ITEM_DETECTED:
+                    # Start by finding/updating the transformation matrix from the camera frame to the base frame
+                    target_frame = 'link_base'
+                    source_frame = 'camera_color_optical_frame'
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Don't move onto the next part in the code until we've found the transformation matrix
+                    while not haveTransform:
+                        self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Get the center of the peg in the base frame
+                    self.ItemPoint = self.getPointInBaseFrame(self.pixel_x_item,self.pixel_y_item)
+                    # Change the state
+                    self.state = FINDING_SQUARE
+                    # Use a timer to change state
+                    self.timer_SM = self.create_timer(0.5, self.TimeoutCallback)
+                    self.get_logger().info(f'Red Peg found . . . Transitioning to look for blue square')
+        elif self.state == FINDING_SQUARE:
+            if Event == ES_TIMEOUT or Event == ES_COMMAND_EXECUTED:
+                if Event == ES_TIMEOUT:
+                    # Stop the timer, as the State Machine is able to continue running on its own in this state
+                    self.CancelTimerSM()
+                    self.get_logger().info(f'Looking for the blue square')
+                else:
+                    # Camera has been moved up - search for square again
+                    self.get_logger().info(f'Camera has been moved accordingly . . . Sending Request to find blue square')
+                # Search for the center of the blue square
+                result = self.findCenterBluePixel()
+                # Act accordingly
+                if result == ES_ITEM_UNDETECTED:
+                    # If the blue square is not in the frame of view, move the camera up by 0.1m
+
+                    # Create a CommandQueue message
+                    queue_msg = CommandQueue()
+                    queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                    # Create a CommandWrapper for the pose command
+                    wrapper_up = CommandWrapper()
+                    wrapper_up.command_type = "pose"
+                    wrapper_up.pose_command.x = self.EE_pos[0]
+                    wrapper_up.pose_command.y = self.EE_pos[1]
+                    wrapper_up.pose_command.z = self.EE_pos[2] + 0.1
+                    wrapper_up.pose_command.qx = 1.0
+                    wrapper_up.pose_command.qy = 0.0
+                    wrapper_up.pose_command.qz = 0.0
+                    wrapper_up.pose_command.qw = 0.0
+
+                    # Specify the final command in this queue for re-entry purposes
+                    self.finalCommand = "Pose"
+
+                    queue_msg.commands.append(wrapper_up)
+                    self.command_queue_pub.publish(queue_msg)
+
+                    self.get_logger().info(f'Blue Square not found . . . Moving camera up to expand view')
+                elif result == ES_ITEM_PARTIAL:
+                    # If the square is detected, but is too close to the border, move the camera a quarter of the distance in the direction of the square
+                    # Start by finding/updating the transformation matrix from the camera frame to the base frame
+                    target_frame = 'link_base'
+                    source_frame = 'camera_color_optical_frame'
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Don't move onto the next part in the code until we've found the transformation matrix
+                    while not haveTransform:
+                        self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Get the center of the partial square in the base frame
+                    partialSquarePoint = self.getPointInBaseFrame(self.pixel_x_square,self.pixel_y_square)
+
+                    # Create a CommandQueue message
+                    queue_msg = CommandQueue()
+                    queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                    # Create a CommandWrapper for the pose command
+                    wrapper_side = CommandWrapper()
+                    wrapper_side.command_type = "pose"
+                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialSquarePoint[0] - self.EE_pos[0])
+                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialSquarePoint[1] - self.EE_pos[1])
+                    wrapper_side.pose_command.z = self.EE_pos[2]
+                    wrapper_side.pose_command.qx = 1.0
+                    wrapper_side.pose_command.qy = 0.0
+                    wrapper_side.pose_command.qz = 0.0
+                    wrapper_side.pose_command.qw = 0.0
+
+                    # Specify the final command in this queue for re-entry purposes
+                    self.finalCommand = "Pose"
+
+                    queue_msg.commands.append(wrapper_side)
+                    self.command_queue_pub.publish(queue_msg)
+
+                    self.get_logger().info(f'Blue square found, but not entirely in frame . . . Moving camera sideways in direction of square')
                 elif result == ES_ITEM_DETECTED:
                     # Start by finding/updating the transformation matrix from the camera frame to the base frame
                     target_frame = 'link_base'
@@ -344,8 +428,6 @@ class PickPlaceCoinNode(Node):
                     # Create a CommandWrapper for the pose command to move the gripper home
                     wrapper_home = CommandWrapper()
                     wrapper_home.command_type = "joint"
-
-                    # Populate the joint command accordingly
                     wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
                     wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
                     wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
@@ -354,104 +436,69 @@ class PickPlaceCoinNode(Node):
                     wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
                     wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
 
-                    # Create a CommandWrapper for the pose command to move the gripper to the coin
+                    # Create a CommandWrapper for the pose command to move the gripper to the peg
                     wrapper_item = CommandWrapper()
                     wrapper_item.command_type = "pose"
-
-                    # Populate the pose_command with the values from the pose_array
                     wrapper_item.pose_command.x = self.ItemPoint[0]
                     wrapper_item.pose_command.y = self.ItemPoint[1]
-                    wrapper_item.pose_command.z = self.ItemPoint[2] - 0.01# - 0.058
+                    wrapper_item.pose_command.z = self.ItemPoint[2] - 0.01
                     wrapper_item.pose_command.qx = 1.0
                     wrapper_item.pose_command.qy = 0.0
                     wrapper_item.pose_command.qz = 0.0
                     wrapper_item.pose_command.qw = 0.0
 
+                    # Create a CommandWrapper for the gripper command to close
+                    wrapper_gripper_close = CommandWrapper()
+                    wrapper_gripper_close.command_type = "gripper"
+                    wrapper_gripper_close.gripper_command.gripper_position = 0.75 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                    # Create a CommandWrapper for the pose command to move the peg above the blue square
+                    wrapper_square_above = CommandWrapper()
+                    wrapper_square_above.command_type = "pose"
+                    wrapper_square_above.pose_command.x = self.PlacePoint[0]
+                    wrapper_square_above.pose_command.y = self.PlacePoint[1]
+                    wrapper_square_above.pose_command.z = self.PlacePoint[2] + 0.15
+                    wrapper_square_above.pose_command.qx = 1.0
+                    wrapper_square_above.pose_command.qy = 0.0
+                    wrapper_square_above.pose_command.qz = 0.0
+                    wrapper_square_above.pose_command.qw = 0.0
+
+                    # Create a CommandWrapper for the pose command to move the peg into the blue square
+                    wrapper_square = CommandWrapper()
+                    wrapper_square.command_type = "pose"
+                    wrapper_square.pose_command.x = self.PlacePoint[0]
+                    wrapper_square.pose_command.y = self.PlacePoint[1]
+                    wrapper_square.pose_command.z = self.PlacePoint[2] + 0.1
+                    wrapper_square.pose_command.qx = 1.0
+                    wrapper_square.pose_command.qy = 0.0
+                    wrapper_square.pose_command.qz = 0.0
+                    wrapper_square.pose_command.qw = 0.0
+
                     # Specify the final command in this queue for re-entry purposes
-                    self.finalCommand = "Pose"
+                    #self.finalCommand = "Pose"
 
                     queue_msg.commands.append(wrapper_gripper_open)
                     queue_msg.commands.append(wrapper_home)
                     queue_msg.commands.append(wrapper_item)
+                    queue_msg.commands.append(wrapper_gripper_close)
+                    queue_msg.commands.append(wrapper_home)
+                    queue_msg.commands.append(wrapper_square_above)
+                    queue_msg.commands.append(wrapper_square)
+                    queue_msg.commands.append(wrapper_gripper_open)
+                    queue_msg.commands.append(wrapper_home)
                     self.command_queue_pub.publish(queue_msg)
 
                     # Change the state
-                    self.state = PREPPING_GRAB
+                    self.state = DUMMY_STATE
 
-                    self.get_logger().info(f'Green square found . . . Moving gripper home, then to coin')
-        elif self.state == PREPPING_GRAB:
-            if Event == ES_COMMAND_EXECUTED:
-                # In this state, we rotate the gripper, then perform pick and place
-
-                # Create a CommandQueue message
-                queue_msg = CommandQueue()
-                queue_msg.header.stamp = self.get_clock().now().to_msg()
-
-                # Create a CommandWrapper for the gripper command to close
-                wrapper_gripper_close = CommandWrapper()
-                wrapper_gripper_close.command_type = "gripper"
-                wrapper_gripper_close.gripper_command.gripper_position = 0.75 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-                # Create a CommandWrapper for the pose command to move the gripper home
-                wrapper_home = CommandWrapper()
-                wrapper_home.command_type = "joint"
-
-                # Populate the joint command accordingly
-                wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
-                wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
-                wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
-                wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
-                wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
-                wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
-                wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
-
-                # Create a CommandWrapper for the pose command
-                wrapper_square = CommandWrapper()
-                wrapper_square.command_type = "pose"
-
-                # Populate the pose_command with the values from the pose_array
-                wrapper_square.pose_command.x = self.PlacePoint[0]
-                wrapper_square.pose_command.y = self.PlacePoint[1]
-                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05# - 0.058
-                wrapper_square.pose_command.qx = 1.0
-                wrapper_square.pose_command.qy = 0.0
-                wrapper_square.pose_command.qz = 0.0
-                wrapper_square.pose_command.qw = 0.0
-
-                # Create a CommandWrapper for the gripper command to open
-                wrapper_gripper_open = CommandWrapper()
-                wrapper_gripper_open.command_type = "gripper"
-                wrapper_gripper_open.gripper_command.gripper_position = 0.0
-
-                # Create a CommandWrapper for the pose command
-                wrapper_home = CommandWrapper()
-                wrapper_home.command_type = "joint"
-
-                # Populate the joint command accordingly
-                wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
-                wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
-                wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
-                wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
-                wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
-                wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
-                wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
-
-                queue_msg.commands.append(wrapper_gripper_close)
-                queue_msg.commands.append(wrapper_home)
-                queue_msg.commands.append(wrapper_square)
-                queue_msg.commands.append(wrapper_gripper_open)
-                queue_msg.commands.append(wrapper_home)
-                self.command_queue_pub.publish(queue_msg)
-
-                self.get_logger().info(f'Performing pick and place on coin')
-                self.state = DUMMY_STATE
+                    self.get_logger().info(f'Blue square found . . . Executing Peg and Place')
         elif self.state == DUMMY_STATE:
             2
         
 
 if __name__ == '__main__':
     rclpy.init()
-    node = PickPlaceCoinNode()
+    node = PegPlaceNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
