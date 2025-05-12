@@ -61,7 +61,7 @@ class CoinFinderNode(Node):
         else:
             self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
         
-        self.scan_image_for_square_subscription = self.create_subscription(
+        self.scan_image_for_coin_subscription = self.create_subscription(
             Bool,  # Message type
             '/scan_coin_request',  # Topic name
             self.ListenerCallbackGetCoin,  # Callback function
@@ -99,7 +99,7 @@ class CoinFinderNode(Node):
         self.cv_image = self.bridge.imgmsg_to_cv2(ImageMsg, "rgb8")
         self.haveColorImage = True
 
-    def ListenerCallbackGetSquare(self, msg):
+    def ListenerCallbackGetCoin(self, msg):
         """
         Callback function that is triggered when this node is told to look for coin.
         """
