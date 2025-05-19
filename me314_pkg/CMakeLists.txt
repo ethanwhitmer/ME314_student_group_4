@@ -39,11 +39,14 @@ install(PROGRAMS
   me314_py/xarm_planner/PickPlace.py
   me314_py/xarm_planner/PickPlaceDollar.py
   me314_py/xarm_planner/PickPlaceCoin.py
+  me314_py/xarm_planner/PickPlaceDollarTouch.py
+  me314_py/xarm_planner/PickPlaceCoinTouch.py
   me314_py/xarm_planner/DollarFinderNode.py
   me314_py/xarm_planner/CoinFinderNode.py
   me314_py/xarm_planner/BackForthNode.py
   me314_py/xarm_planner/BackForthStopNode.py
   me314_py/xarm_planner/PegPlaceSimple.py
+  me314_py/xarm_planner/PegPlaceMoment.py
   me314_py/xarm_planner/TransformTimer.py
   DESTINATION lib/${PROJECT_NAME}
 )

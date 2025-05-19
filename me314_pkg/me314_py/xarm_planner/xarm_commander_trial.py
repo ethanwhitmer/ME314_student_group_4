@@ -67,7 +67,7 @@ class ME314_XArm_Queue_Commander(Node):
         self.use_sim = self.get_parameter('use_sim').value
         self.log_info(f"Running with use_sim={self.use_sim}")
 
-        self.declare_parameter('ft_threshold', 2.0)
+        self.declare_parameter('ft_threshold', 10.0)
         self.ft_threshold = self.get_parameter('ft_threshold').value
         self.last_ext_force_mag = 0.0
         self.controller_goal_handle = None
