@@ -61,7 +61,7 @@ class CoinFinderNode(Node):
         else:
             self.camera_subscription = self.create_subscription(Image,"/color/image_raw",self.CameraRGBCallback,qos_profile=qos_profile_sensor_data) # RGB Camera
         
-        self.scan_image_for_square_subscription = self.create_subscription(
+        self.scan_image_for_coin_subscription = self.create_subscription(
             Bool,  # Message type
             '/scan_coin_request',  # Topic name
             self.ListenerCallbackGetCoin,  # Callback function
@@ -99,7 +99,7 @@ class CoinFinderNode(Node):
         self.cv_image = self.bridge.imgmsg_to_cv2(ImageMsg, "rgb8")
         self.haveColorImage = True
 
-    def ListenerCallbackGetSquare(self, msg):
+    def ListenerCallbackGetCoin(self, msg):
         """
         Callback function that is triggered when this node is told to look for coin.
         """
@@ -118,8 +118,9 @@ class CoinFinderNode(Node):
 
             frame = self.cv_image.copy()
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+            _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
             keypoints = self.blob_detector.detect(thresh)
 
             # Draw detected blobs as green circles.
@@ -140,7 +141,8 @@ class CoinFinderNode(Node):
             self.coin_point_publisher.publish(coin_point)
 
         if self.visualize:
-            cv2.imshow("Visualization", output)
+            # cv2.imshow("Visualization", output)
+            cv2.imshow("Visualization", thresh)
         cv2.waitKey(0)
 
 def main(args=None):

@@ -49,7 +49,7 @@ class PickPlaceNode(Node):
         super().__init__('pick_place_node')
 
         # Use this to set the name of the camera topics depending on whether we're in sim or real
-        self.usingRealRobot = False
+        self.usingRealRobot = True
 
         # Camera Topic Names
         self.CameraIntrinsicsTopic = "/color/camera_info"
@@ -162,8 +162,8 @@ class PickPlaceNode(Node):
             point_base[1] = -0.3
         if point_base[2] > 0.4:
             point_base[2] = 0.4
-        elif point_base[2] < 0.01:
-            point_base[2] = 0.01
+        elif point_base[2] < 0.035:
+            point_base[2] = 0.035
         self.get_logger().info(f'Desired object Base location: x={point_base[0]:.2f}, y={point_base[1]:.2f}, z={point_base[2]:.2f}')
         return point_base
     
@@ -184,7 +184,7 @@ class PickPlaceNode(Node):
         if msg.position.z == 1.0:
             self.pixel_x_dollar = msg.position.x
             self.pixel_y_dollar = msg.position.y
-            self.dollarAngle = math.radians(msg.orientation.z)
+            self.dollarAngle = math.radians(msg.orientation.z) + np.pi/2
             if self.dollarAngle > np.pi/2:
                 self.dollarAngle -= np.pi
             elif self.dollarAngle < -np.pi/2:
@@ -287,7 +287,7 @@ class PickPlaceNode(Node):
                 wrapper_side.command_type = "pose"
 
                 # Populate the pose_command with the values from the pose_array
-                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialDollarPoint[0] - self.EE_pos[0])
+                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialDollarPoint[0] - self.EE_pos[0] - 0.05)
                 wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialDollarPoint[1] - self.EE_pos[1])
                 wrapper_side.pose_command.z = self.EE_pos[2]
                 wrapper_side.pose_command.qx = 1.0
@@ -374,7 +374,7 @@ class PickPlaceNode(Node):
                 wrapper_side.command_type = "pose"
 
                 # Populate the pose_command with the values from the pose_array
-                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialPlacePoint[0] - self.EE_pos[0])
+                wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialPlacePoint[0] - self.EE_pos[0] - 0.05)
                 wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialPlacePoint[1] - self.EE_pos[1])
                 wrapper_side.pose_command.z = self.EE_pos[2]
                 wrapper_side.pose_command.qx = 1.0
@@ -430,9 +430,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_dollar.pose_command.x = self.DollarPoint[0]
                 wrapper_dollar.pose_command.y = self.DollarPoint[1]
-                wrapper_dollar.pose_command.z = self.DollarPoint[2] - 0.01# - 0.058
-                if self.usingRealRobot:
-                    wrapper_dollar.pose_command.z -= 0.058
+                wrapper_dollar.pose_command.z = self.DollarPoint[2] + 0.0225
                 wrapper_dollar.pose_command.qx = 1.0
                 wrapper_dollar.pose_command.qy = 0.0
                 wrapper_dollar.pose_command.qz = 0.0
@@ -474,7 +472,7 @@ class PickPlaceNode(Node):
                 # Create a CommandWrapper for the gripper command to close
                 wrapper_gripper_close = CommandWrapper()
                 wrapper_gripper_close.command_type = "gripper"
-                wrapper_gripper_close.gripper_command.gripper_position = 0.50
+                wrapper_gripper_close.gripper_command.gripper_position = 0.75
 
                 # Create a CommandWrapper for the pose command to move the gripper home
                 wrapper_home = CommandWrapper()
@@ -496,9 +494,7 @@ class PickPlaceNode(Node):
                 # Populate the pose_command with the values from the pose_array
                 wrapper_square.pose_command.x = self.PlacePoint[0]
                 wrapper_square.pose_command.y = self.PlacePoint[1]
-                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05# - 0.058
-                if self.usingRealRobot:
-                    wrapper_square.pose_command.z -= 0.058
+                wrapper_square.pose_command.z = self.PlacePoint[2] + 0.05
                 wrapper_square.pose_command.qx = 1.0
                 wrapper_square.pose_command.qy = 0.0
                 wrapper_square.pose_command.qz = 0.0

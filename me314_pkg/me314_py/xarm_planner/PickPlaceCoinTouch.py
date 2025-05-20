@@ -179,8 +179,8 @@ class PickPlaceCoinNode(Node):
             point_base[1] = -0.3
         if point_base[2] > 0.4:
             point_base[2] = 0.4
-        elif point_base[2] < 0.035:
-            point_base[2] = 0.035
+        elif point_base[2] < 0.015:
+            point_base[2] = 0.015
         self.get_logger().info(f'Desired object Base location: x={point_base[0]:.2f}, y={point_base[1]:.2f}, z={point_base[2]:.2f}')
         return point_base
     
@@ -241,7 +241,7 @@ class PickPlaceCoinNode(Node):
         while not haveTransform:
             FT_To_BaseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
         baseForce = FT_To_BaseTransform[:,:-1] @ self.currentForce
-        if baseForce[2] > 2:
+        if baseForce[2] > 9:
             return ES_COLLISION_DETECTED
         else:
             return ES_NO_COLLISION_DETECTED
@@ -453,7 +453,7 @@ class PickPlaceCoinNode(Node):
                     wrapper_down.command_type = "pose"
                     wrapper_down.pose_command.x = self.ItemPoint[0]
                     wrapper_down.pose_command.y = self.ItemPoint[1]
-                    wrapper_down.pose_command.z = 0.035 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    wrapper_down.pose_command.z = 0.022 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     wrapper_down.pose_command.qx = 1.0
                     wrapper_down.pose_command.qy = 0.0
                     wrapper_down.pose_command.qz = 0.0
@@ -523,7 +523,7 @@ class PickPlaceCoinNode(Node):
                 wrapper_shift_up.command_type = "pose"
                 wrapper_shift_up.pose_command.x = self.ItemPoint[0]
                 wrapper_shift_up.pose_command.y = self.ItemPoint[1]
-                wrapper_shift_up.pose_command.z = self.ground + 0.01 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                wrapper_shift_up.pose_command.z = self.ground + 0.008    # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 wrapper_shift_up.pose_command.qx = 1.0
                 wrapper_shift_up.pose_command.qy = 0.0
                 wrapper_shift_up.pose_command.qz = 0.0
@@ -550,7 +550,7 @@ class PickPlaceCoinNode(Node):
                 wrapper_square.command_type = "pose"
                 wrapper_square.pose_command.x = self.PlacePoint[0]
                 wrapper_square.pose_command.y = self.PlacePoint[1]
-                wrapper_square.pose_command.z = self.ground + 0.02 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                wrapper_square.pose_command.z = self.ground + 0.03 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 wrapper_square.pose_command.qx = 1.0
                 wrapper_square.pose_command.qy = 0.0
                 wrapper_square.pose_command.qz = 0.0

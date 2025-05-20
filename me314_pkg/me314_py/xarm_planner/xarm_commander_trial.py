@@ -67,7 +67,7 @@ class ME314_XArm_Queue_Commander(Node):
         self.use_sim = self.get_parameter('use_sim').value
         self.log_info(f"Running with use_sim={self.use_sim}")
 
-        self.declare_parameter('ft_threshold', 10.0)
+        self.declare_parameter('ft_threshold', 30.0)
         self.ft_threshold = self.get_parameter('ft_threshold').value
         self.last_ext_force_mag = 0.0
         self.controller_goal_handle = None
@@ -89,7 +89,7 @@ class ME314_XArm_Queue_Commander(Node):
         if self.use_sim:
             self.z_bounds = (0, 400) 
         else:
-            self.z_bounds = (35, 400)
+            self.z_bounds = (15, 400)
 
         # Initialize planning scene
         self.planning_scene = PlanningScene()
