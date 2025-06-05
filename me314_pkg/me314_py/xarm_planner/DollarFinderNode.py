@@ -298,8 +298,8 @@ class DollarFinderNode(Node):
         elif object == "Square":
             print("Looking for square")
             hsv = cv2.cvtColor(self.cv_image, cv2.COLOR_RGB2HSV)
-            lower_green = np.array([40, 40, 40])
-            upper_green = np.array([70, 255, 255])
+            lower_green = np.array([50, 40, 40])
+            upper_green = np.array([90, 255, 255])
             mask = cv2.inRange(hsv, lower_green, upper_green)
 
              # Clean up the mask

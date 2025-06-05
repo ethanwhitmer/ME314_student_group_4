@@ -118,8 +118,9 @@ class CoinFinderNode(Node):
 
             frame = self.cv_image.copy()
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+            _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
             keypoints = self.blob_detector.detect(thresh)
 
             # Draw detected blobs as green circles.
@@ -140,7 +141,8 @@ class CoinFinderNode(Node):
             self.coin_point_publisher.publish(coin_point)
 
         if self.visualize:
-            cv2.imshow("Visualization", output)
+            # cv2.imshow("Visualization", output)
+            cv2.imshow("Visualization", thresh)
         cv2.waitKey(0)
 
 def main(args=None):

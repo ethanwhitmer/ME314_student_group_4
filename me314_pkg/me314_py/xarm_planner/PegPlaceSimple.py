@@ -34,6 +34,7 @@ from sensor_msgs.msg import JointState
 INITIALIZATION = 1
 FINDING_ITEM = 2
 FINDING_SQUARE = 3
+POSTIONING_GRAB = 4
 DUMMY_STATE = 4
 
 # Events
@@ -166,8 +167,8 @@ class PegPlaceNode(Node):
             point_base[1] = -0.3
         if point_base[2] > 0.4:
             point_base[2] = 0.4
-        elif point_base[2] < 0.01:
-            point_base[2] = 0.01
+        elif point_base[2] < 0.035:
+            point_base[2] = 0.035
         self.get_logger().info(f'Desired object Base location: x={point_base[0]:.2f}, y={point_base[1]:.2f}, z={point_base[2]:.2f}')
         return point_base
     
@@ -211,8 +212,8 @@ class PegPlaceNode(Node):
         lower_bound = np.array([108, 100, 0])
         upper_bound = np.array([140, 255, 255])
         mask_img = cv2.inRange(hsv_img, lower_bound, upper_bound)
-        # modified_img = cv2.bitwise_and(self.cv_ColorImage, self.cv_ColorImage, mask=mask_img)
-        # self.extracted_pub.publish(self.bridge.cv2_to_imgmsg(modified_img, "rgb8"))
+        modified_img = cv2.bitwise_and(self.cv_ColorImage, self.cv_ColorImage, mask=mask_img)
+        self.extracted_pub.publish(self.bridge.cv2_to_imgmsg(modified_img, "rgb8"))
         verticalSize = mask_img.shape[0]
         horizontalSize = mask_img.shape[1]
         cube_points = [[y,x] for y in range(verticalSize) for x in range(horizontalSize) if mask_img[y,x]>0 ]
@@ -303,8 +304,8 @@ class PegPlaceNode(Node):
                     # Create a CommandWrapper for the pose command
                     wrapper_side = CommandWrapper()
                     wrapper_side.command_type = "pose"
-                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialItemPoint[0] - self.EE_pos[0])
-                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialItemPoint[1] - self.EE_pos[1])
+                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.1*(partialItemPoint[0] - self.EE_pos[0] - 0.05)
+                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.1*(partialItemPoint[1] - self.EE_pos[1])
                     wrapper_side.pose_command.z = self.EE_pos[2]
                     wrapper_side.pose_command.qx = 1.0
                     wrapper_side.pose_command.qy = 0.0
@@ -389,8 +390,8 @@ class PegPlaceNode(Node):
                     # Create a CommandWrapper for the pose command
                     wrapper_side = CommandWrapper()
                     wrapper_side.command_type = "pose"
-                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.25*(partialSquarePoint[0] - self.EE_pos[0])
-                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.25*(partialSquarePoint[1] - self.EE_pos[1])
+                    wrapper_side.pose_command.x = self.EE_pos[0] + 0.1*(partialSquarePoint[0] - self.EE_pos[0] - 0.05)
+                    wrapper_side.pose_command.y = self.EE_pos[1]+ 0.1*(partialSquarePoint[1] - self.EE_pos[1])
                     wrapper_side.pose_command.z = self.EE_pos[2]
                     wrapper_side.pose_command.qx = 1.0
                     wrapper_side.pose_command.qy = 0.0
@@ -423,7 +424,7 @@ class PegPlaceNode(Node):
                     # Create a CommandWrapper for the gripper command to open
                     wrapper_gripper_open = CommandWrapper()
                     wrapper_gripper_open.command_type = "gripper"
-                    wrapper_gripper_open.gripper_command.gripper_position = 0.5 # Change this to appropriate starting amount!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    wrapper_gripper_open.gripper_command.gripper_position = 0.0 # Change this to appropriate starting amount!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                     # Create a CommandWrapper for the pose command to move the gripper home
                     wrapper_home = CommandWrapper()
@@ -441,7 +442,46 @@ class PegPlaceNode(Node):
                     wrapper_item.command_type = "pose"
                     wrapper_item.pose_command.x = self.ItemPoint[0]
                     wrapper_item.pose_command.y = self.ItemPoint[1]
-                    wrapper_item.pose_command.z = self.ItemPoint[2] - 0.01
+                    wrapper_item.pose_command.z = self.ItemPoint[2] + 0.1
+                    wrapper_item.pose_command.qx = 1.0
+                    wrapper_item.pose_command.qy = 0.0
+                    wrapper_item.pose_command.qz = 0.0
+                    wrapper_item.pose_command.qw = 0.0
+
+                    # Specify the final command in this queue for re-entry purposes
+                    self.finalCommand = "Pose"
+
+                    queue_msg.commands.append(wrapper_gripper_open)
+                    queue_msg.commands.append(wrapper_home)
+                    queue_msg.commands.append(wrapper_item)
+                    self.command_queue_pub.publish(queue_msg)
+
+                    self.state = POSTIONING_GRAB
+
+        elif self.state == POSTIONING_GRAB:
+            if Event == ES_COMMAND_EXECUTED:
+                result = self.findCenterRedPixel()
+                if result != ES_ITEM_UNDETECTED:
+                    target_frame = 'link_base'
+                    source_frame = 'camera_color_optical_frame'
+                    self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Don't move onto the next part in the code until we've found the transformation matrix
+                    while not haveTransform:
+                        self.baseTransform, haveTransform = self.GetTransform(target_frame, source_frame)
+                    # Get the center of the peg in the base frame
+                    self.ItemPoint = self.getPointInBaseFrame(self.pixel_x_item,self.pixel_y_item)
+
+                    # Create a CommandQueue message
+                    queue_msg = CommandQueue()
+                    queue_msg.header.stamp = self.get_clock().now().to_msg()
+
+                    self.get_logger().info(f'Peg Grab: x={self.ItemPoint[0]:.2f}, y={self.ItemPoint[1]:.2f}, z={self.ItemPoint[2] - 0.02:.2f}')
+
+                    wrapper_item = CommandWrapper()
+                    wrapper_item.command_type = "pose"
+                    wrapper_item.pose_command.x = self.ItemPoint[0]
+                    wrapper_item.pose_command.y = self.ItemPoint[1]
+                    wrapper_item.pose_command.z = self.ItemPoint[2] - 0.02
                     wrapper_item.pose_command.qx = 1.0
                     wrapper_item.pose_command.qy = 0.0
                     wrapper_item.pose_command.qz = 0.0
@@ -450,7 +490,7 @@ class PegPlaceNode(Node):
                     # Create a CommandWrapper for the gripper command to close
                     wrapper_gripper_close = CommandWrapper()
                     wrapper_gripper_close.command_type = "gripper"
-                    wrapper_gripper_close.gripper_command.gripper_position = 0.75 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    wrapper_gripper_close.gripper_command.gripper_position = 0.49 # Change this accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                     # Create a CommandWrapper for the pose command to move the peg above the blue square
                     wrapper_square_above = CommandWrapper()
@@ -474,11 +514,23 @@ class PegPlaceNode(Node):
                     wrapper_square.pose_command.qz = 0.0
                     wrapper_square.pose_command.qw = 0.0
 
+                    wrapper_home = CommandWrapper()
+                    wrapper_home.command_type = "joint"
+                    wrapper_home.joint_command.joint1 = self.home_joints_rad[0]
+                    wrapper_home.joint_command.joint2 = self.home_joints_rad[1]
+                    wrapper_home.joint_command.joint3 = self.home_joints_rad[2]
+                    wrapper_home.joint_command.joint4 = self.home_joints_rad[3]
+                    wrapper_home.joint_command.joint5 = self.home_joints_rad[4]
+                    wrapper_home.joint_command.joint6 = self.home_joints_rad[5]
+                    wrapper_home.joint_command.joint7 = self.home_joints_rad[6]
+
+                    # Create a CommandWrapper for the gripper command to open
+                    wrapper_gripper_open = CommandWrapper()
+                    wrapper_gripper_open.command_type = "gripper"
+                    wrapper_gripper_open.gripper_command.gripper_position = 0.0 # Change this to appropriate starting amount!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
                     # Specify the final command in this queue for re-entry purposes
                     #self.finalCommand = "Pose"
-
-                    queue_msg.commands.append(wrapper_gripper_open)
-                    queue_msg.commands.append(wrapper_home)
                     queue_msg.commands.append(wrapper_item)
                     queue_msg.commands.append(wrapper_gripper_close)
                     queue_msg.commands.append(wrapper_home)

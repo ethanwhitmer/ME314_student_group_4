@@ -127,7 +127,7 @@ class PickPlaceNode(Node):
                         # Populate the pose_command with the values from the pose_array
                         wrapper_home.pose_command.x = 0.3408
                         wrapper_home.pose_command.y = 0.0021
-                        wrapper_home.pose_command.z = 0.3029 - 0.058
+                        wrapper_home.pose_command.z = 0.3029
                         wrapper_home.pose_command.qx = 1.0
                         wrapper_home.pose_command.qy = 0.0
                         wrapper_home.pose_command.qz = 0.0
@@ -182,7 +182,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_p1.pose_command.x = self.blockPoint[0]
                     wrapper_p1.pose_command.y = self.blockPoint[1]
-                    wrapper_p1.pose_command.z = 0.083 - 0.058#self.blockPoint[2] - 0.01 - 0.058
+                    wrapper_p1.pose_command.z = self.blockPoint[2] + 0.01 #- 0.01
                     wrapper_p1.pose_command.qx = 1.0
                     wrapper_p1.pose_command.qy = 0.0
                     wrapper_p1.pose_command.qz = 0.0
@@ -191,7 +191,7 @@ class PickPlaceNode(Node):
                     # Create a CommandWrapper for the gripper command to close
                     wrapper_gripper_close = CommandWrapper()
                     wrapper_gripper_close.command_type = "gripper"
-                    wrapper_gripper_close.gripper_command.gripper_position = 1.0
+                    wrapper_gripper_close.gripper_command.gripper_position = 0.7
 
                     # Create a CommandWrapper for the pose command
                     wrapper_home = CommandWrapper()
@@ -200,7 +200,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_home.pose_command.x = 0.3408
                     wrapper_home.pose_command.y = 0.0021
-                    wrapper_home.pose_command.z = 0.3029 - 0.058
+                    wrapper_home.pose_command.z = 0.3029
                     wrapper_home.pose_command.qx = 1.0
                     wrapper_home.pose_command.qy = 0.0
                     wrapper_home.pose_command.qz = 0.0
@@ -230,7 +230,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_p2.pose_command.x = self.PlacePoint[0]
                     wrapper_p2.pose_command.y = self.PlacePoint[1]
-                    wrapper_p2.pose_command.z = self.PlacePoint[2] + 0.04 - 0.058
+                    wrapper_p2.pose_command.z = self.PlacePoint[2] + 0.06
                     wrapper_p2.pose_command.qx = 1.0
                     wrapper_p2.pose_command.qy = 0.0
                     wrapper_p2.pose_command.qz = 0.0
@@ -243,7 +243,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_p3.pose_command.x = self.PlacePoint[0]
                     wrapper_p3.pose_command.y = self.PlacePoint[1]
-                    wrapper_p3.pose_command.z = self.PlacePoint[2] + 0.1 - 0.058
+                    wrapper_p3.pose_command.z = self.PlacePoint[2] + 0.1
                     wrapper_p3.pose_command.qx = 1.0
                     wrapper_p3.pose_command.qy = 0.0
                     wrapper_p3.pose_command.qz = 0.0
@@ -261,7 +261,7 @@ class PickPlaceNode(Node):
                     # Populate the pose_command with the values from the pose_array
                     wrapper_home.pose_command.x = 0.3408
                     wrapper_home.pose_command.y = 0.0021
-                    wrapper_home.pose_command.z = 0.3029 - 0.058
+                    wrapper_home.pose_command.z = 0.3029
                     wrapper_home.pose_command.qx = 1.0
                     wrapper_home.pose_command.qy = 0.0
                     wrapper_home.pose_command.qz = 0.0
@@ -273,7 +273,7 @@ class PickPlaceNode(Node):
                     # Add the command to the queue and publish
                     queue_msg.commands.append(wrapper_p2)
                     queue_msg.commands.append(wrapper_gripper_open)
-                    queue_msg.commands.append(wrapper_p3)
+                    #queue_msg.commands.append(wrapper_p3)
                     queue_msg.commands.append(wrapper_home)
                     self.command_queue_pub.publish(queue_msg)
 
